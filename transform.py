@@ -98,7 +98,9 @@ def transform_all(raw_daily_data, raw_profile_data):
     
     transformed_daily_data = df.dropna().round(4)
     
-    return transformed_daily_data, transform_profile_data, transformed_performance_index
+    d_one_daily_data = transformed_daily_data.iloc[0]
+    
+    return transformed_daily_data, tramsformed_profile_data, transformed_performance_index, d_one_daily_data
 
 if __name__ == "__main__":
     API_KEY = 'M0DGWQX51UXIZODZ' 
@@ -107,12 +109,14 @@ if __name__ == "__main__":
     raw_daily_data, raw_profile_data = extract.extract_data(API_KEY, STOCK_TICKER)
     
     if raw_daily_data is not None and raw_profile_data is not None:
-        transformed_data, clean_profile, performance_snapshot = transform_all(raw_daily_data, raw_profile_data)
+        transformed_data, clean_profile, performance_snapshot, d_one_daily_data = transform_all(raw_daily_data, raw_profile_data)
         
         print(transformed_data.head())
 
         print(clean_profile)
 
         print(performance_snapshot)
+        
+        print(d_one_daily_data)
     else:
         print("Transform Failed")
