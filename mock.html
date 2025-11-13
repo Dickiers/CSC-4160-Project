@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Market Analysis Dashboard</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Load Chart.js Financial Library for Candlestick Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.0/dist/chartjs-chart-financial.min.js"></script>
+    
+    <!-- FIX: Add the Date Adapter for Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+    <!-- Load lucide-react icons (we use the non-react version here) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom scrollbar styling for a cleaner look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; } /* gray-200 */
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; } /* gray-400 */
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; } /* gray-500 */
+
+        /* Ensures the dashboard takes up the full viewport height */
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Basic font settings and background color */
+        body {
+            background-color: #f8fafc; /* gray-50 */
+            color: #1f2937; /* gray-800 */
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+
+    <!-- Main Dashboard Container -->
+    <div id="app" class="max-w-7xl mx-auto">
+        
+        <!-- Header / Navigation -->
+        <header class="bg-emerald-700 p-4 rounded-xl shadow-xl mb-8 flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0">
+            
+            <a href="" class="text-2xl font-bold text-white flex-shrink-0 transition-colors duration-150 ease-in-out hover:text-emerald-950 flex items-center space-x-2">
+                <span data-lucide="line-chart" class="w-7 h-7"></span>
+                <span>Stock Market ETL Analysis</span>
+            </a>
+            
+            <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-2 w-full lg:w-auto">
+                <!-- Search Bar -->
+                <input type="text" id="symbolInput" placeholder="Enter Ticker Symbol (e.g., MSFT)"
+                       class="w-full sm:w-72 p-3 rounded-lg border border-gray-300 bg-gray-100 text-gray-900 placeholder-gray-500 transition duration-150
+                              focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 hover:shadow-md">
+                
+                <!-- Analyze Button -->
+                <button id="searchButton"
+                        class="bg-white hover:bg-emerald-50 text-emerald-700 font-semibold py-3 px-4 rounded-lg shadow-md transition duration-150 transform hover:scale-105 flex items-center space-x-2 w-full sm:w-auto justify-center">
+                    <span data-lucide="search" class="w-5 h-5"></span>
+                    <span>Analyze</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            
+            <!-- Left Column: Company Profile and Key Metrics (lg:col-span-1) -->
+            <section class="lg:col-span-1 space-y-8">
+                
+                <!-- Company Profile Card -->
+                <div id="companyProfileCard" class="bg-white p-6 rounded-xl shadow-xl border-t-4 border-emerald-500 h-full">
+                    <h2 class="text-xl font-semibold mb-4 text-emerald-600">Company Profile</h2>
+                    <div id="companyName" class="text-2xl font-bold mb-1 text-gray-900">Stock Name</div>
+                    <div id="companySymbol" class="text-lg text-gray-500 mb-4">TICKER</div>
+                    
+                    <div id="companyDetails" class="space-y-3 text-gray-700">
+                        <p><span class="font-medium text-emerald-800">Industry:</span> <span id="industryValue">Loading...</span></p>
+                        <p><span class="font-medium text-emerald-800">Market Cap:</span> <span id="marketCapValue">Loading...</span></p>
+                        <p><span class="font-medium text-emerald-800">P/E Ratio:</span> <span id="peRatioValue">Loading...</span></p>
+                        <p><span class="font-medium text-emerald-800">52-Week High:</span> <span id="week52HighValue">Loading...</span></p>
+                        <p><span class="font-medium text-emerald-800">52-Week Low:</span> <span id="week52LowValue">Loading...</span></p>
+                    </div>
+
+                    <div id="companyDescription" class="mt-4 text-sm max-h-40 overflow-y-auto pr-2">
+                        <p class="text-gray-500 italic">Description will appear here after fetching data.</p>
+                    </div>
+                </div>
+
+                <!-- Key Performance Card -->
+                <div class="bg-white p-6 rounded-xl shadow-xl border-t-4 border-gray-300">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Key Performance</h2>
+                    <div id="performanceTable" class="space-y-2">
+                        <!-- Rows will be inserted by JS -->
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">1-Day Change</span><span id="perf1day" class="font-medium">--</span></div>
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">5-Day Change</span><span id="perf5day" class="font-medium">--</span></div>
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">1-Month Change</span><span id="perf1month" class="font-medium">--</span></div>
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">1-Year Change</span><span id="perf1year" class="font-medium">--</span></div>
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">5-Year Change</span><span id="perf5year" class="font-medium">--</span></div>
+                        <div class="flex justify-between text-sm"><span class="text-gray-600">YTD Change</span><span id="perfYTD" class="font-medium">--</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Charts and Data (lg:col-span-3) -->
+            <section class="lg:col-span-3 space-y-8">
+
+                <!-- Chart Area 1: Candlestick and Volume -->
+                <div id="priceVolumeChartContainer" class="bg-white p-6 rounded-xl shadow-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-emerald-600">Price & Volume Trend</h2>
+                    <div id="priceChartCanvasWrapper" class="relative w-full h-96">
+                        <canvas id="priceChart"></canvas>
+                        <!-- Loading Indicator Overlay -->
+                        <div id="loadingOverlay" class="absolute inset-0 bg-white/90 flex items-center justify-center rounded-xl transition-opacity duration-300 opacity-0 pointer-events-none">
+                            <div class="text-center text-gray-700">
+                                <span class="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full block mx-auto mb-2"></span>
+                                <p>Fetching and analyzing data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHART AREA 2: RSI Indicator -->
+                <div id="rsiChartContainer" class="bg-white p-6 rounded-xl shadow-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-emerald-600">Relative Strength Index (RSI)</h2>
+                    <div id="rsiChartCanvasWrapper" class="relative w-full h-48">
+                        <canvas id="rsiChart"></canvas>
+                    </div>
+                </div>
+
+
+                <!-- Key Metrics/Technical Indicators Table -->
+                <div class="bg-white p-6 rounded-xl shadow-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-emerald-600">Key Technical Metrics</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="metricsTableBody" class="divide-y divide-gray-200 text-gray-700">
+                                <!-- Data will be inserted here -->
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">50-Day Moving Average (MA)</td>
+                                    <td id="ma50Value" class="px-6 py-4 whitespace-nowrap text-emerald-700">--</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">Short-term trend line.</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">200-Day Moving Average (MA)</td>
+                                    <td id="ma200Value" class="px-6 py-4 whitespace-nowrap text-emerald-700">--</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">Long-term trend line.</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">Relative Strength Index (RSI)</td>
+                                    <td id="rsiValue" class="px-6 py-4 whitespace-nowrap text-emerald-700">--</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">Momentum indicator (0-100).</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">Latest Adjusted Close</td>
+                                    <td id="latestCloseValue" class="px-6 py-4 whitespace-nowrap text-emerald-700">--</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">Price adjusted for splits/dividends.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Historical Daily Data Table -->
+                <div class="bg-white p-6 rounded-xl shadow-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-emerald-600">Historical Daily Data</h2>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Open</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">High</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Low</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Close</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historicalTableBody" class="divide-y divide-gray-200 text-gray-700">
+                                <!-- Historical rows will be inserted here -->
+                                <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading historical data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 
+    ====================================================================
+    JAVASCRIPT LOGIC
+    ====================================================================
+    -->
+    <script type="module">
+        // --- GLOBAL SETUP & FIREBASE INIT ---
+
+        // Firebase Imports (Dynamic)
+        // We must import modules dynamically in a single-file HTML app
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+        const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+        const { getFirestore, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId;
+        let priceChartInstance = null; // To hold the Chart.js instance for Price/Volume
+        let rsiChartInstance = null; // To hold the Chart.js instance for RSI
+
+        // Function to check if we are in the local dev environment
+        const isLocalDev = () => {
+            return window.location.protocol === 'file:' || 
+                   window.location.hostname === '127.0.0.1' || 
+                   !firebaseConfig; // Fail-safe if config is missing
+        };
+
+        async function initializeFirebase() {
+            if (isLocalDev()) {
+                console.warn("Running in local development mode. Firebase will not be initialized.");
+                setupEventListeners(); // Setup listeners to use mock data
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 1. Authenticate the user
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                // 2. Set the user ID
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized. User ID:", userId);
+
+                // Start the main app logic after successful authentication
+                setupEventListeners();
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                // Display a user-friendly error message on the screen
+                displayError("Cannot connect to database. Check console.", true);
+            }
+        }
+
+        // --- DATA FETCHING FUNCTIONS ---
+
+        // Helper function to show/hide the loading overlay
+        function showLoading(isVisible) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (isVisible) {
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+            } else {
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        /**
+         * Fetches data from Firestore or displays mock data if running locally.
+         * @param {string} symbol - The stock ticker symbol.
+         */
+        async function fetchStockData(symbol) {
+            let dataToDisplay = null;
+            const formattedSymbol = symbol.toUpperCase();
+
+            try {
+                showLoading(true);
+
+                if (isLocalDev()) {
+                    // --- LOCAL DEVELOPMENT MOCK DATA PATH ---
+                    console.warn("Running in local development mode. Displaying MOCK data for symbol:", formattedSymbol);
+                    // Add a fake delay to simulate network request
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    dataToDisplay = generateMockData(formattedSymbol);
+
+                } else {
+                    // --- DEPLOYED FIREBASE FETCH PATH ---
+                    if (!db) {
+                        console.error("Firestore not initialized.");
+                        displayError("Database connection failed. Check authentication.", true);
+                        return;
+                    }
+
+                    // This is the "contract" with the Backend Lead
+                    const dataPath = `artifacts/${appId}/public/data/stock_data`;
+                    const docRef = doc(db, dataPath, formattedSymbol);
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists()) {
+                        dataToDisplay = docSnap.data();
+                        console.log("Real Data fetched:", dataToDisplay);
+                    } else {
+                        displayError(`No processed data found for symbol: ${formattedSymbol}`, true);
+                        return;
+                    }
+                }
+
+                // If we have data (either mock or real), display it
+                if (dataToDisplay) {
+                    displayData(dataToDisplay);
+                }
+
+            } catch (error) {
+                console.error("Error during data fetching process:", error);
+                displayError("A critical error occurred while fetching data.", true);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+
+        // --- MOCK DATA GENERATION (To match transform.py structure) ---
+        
+        /**
+         * Generates a complete mock data object, simulating the `transform.py` output.
+         * @param {string} symbol - The stock ticker symbol.
+         */
+        function generateMockData(symbol) {
+            
+            // 1. Generate Illustrative Daily Data
+            // This function now generates the full daily list with all metrics
+            const dailyData = generateMockDailyData(365);
+            const latestData = dailyData[dailyData.length - 1];
+            const firstData = dailyData[0];
+
+            // 2. Simulate Company Overview
+            const clean_profile = {
+                "Symbol": symbol,
+                "Name": `Mock ${symbol} Inc.`,
+                "Industry": "Technology (Mock)",
+                "MarketCapitalization": 1500000000000 + Math.floor(Math.random() * 50000000000),
+                "PERatio": 25 + Math.random() * 10,
+                "52WeekHigh": Math.max(...dailyData.slice(-252).map(d => d.h)),
+                "52WeekLow": Math.min(...dailyData.slice(-252).map(d => d.l)),
+                "Description": "This is illustrative mock data generated by the frontend for local development. The data simulates a 1-year history and includes calculated metrics to match the backend's `transform.py` file."
+            };
+
+            // 3. Simulate Performance Snapshot
+            const performance_snapshot = {
+                '1day_change_percent': (latestData.c - dailyData[dailyData.length - 2].c) / dailyData[dailyData.length - 2].c * 100,
+                '5day_change_percent': (latestData.c - dailyData[dailyData.length - 6].c) / dailyData[dailyData.length - 6].c * 100,
+                'month_change_percent': (latestData.c - dailyData[dailyData.length - 22].c) / dailyData[dailyData.length - 22].c * 100,
+                'year_change_percent': (latestData.c - firstData.c) / firstData.c * 100,
+                '5year_change_percent': (latestData.c - (firstData.c / 3)) / (firstData.c / 3) * 100, // Fake 5-year
+                'ytd_change_percent': (latestData.c - firstData.c) / firstData.c * 100 // Simulating YTD as 1-year
+            };
+
+            // 4. Return the complete, matching object
+            return {
+                companyOverview: clean_profile,
+                transformed_daily_data: dailyData,
+                transformed_performance_index: performance_snapshot
+            };
+        }
+
+        /**
+         * Generates an illustrative list of daily data points (the time series).
+         * @param {number} days - Number of days to generate.
+         */
+        function generateMockDailyData(days) {
+            const dailyData = [];
+            let currentPrice = 150 + Math.random() * 20;
+            const today = new Date();
+            
+            let closePrices = [];
+            
+            // Generate raw prices first
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(today.getDate() - i);
+                
+                let change;
+                // --- Start of Illustrative "Story" Logic ---
+                if (i > 300) { // Phase 1: Slow growth
+                    change = (Math.random() - 0.45) * 2;
+                } else if (i > 200) { // Phase 2: Bull Run
+                    change = (Math.random() - 0.3) * 5;
+                } else if (i > 150) { // Phase 3: Sharp Correction
+                    change = (Math.random() - 0.7) * 4;
+                } else { // Phase 4: Recovery
+                    change = (Math.random() - 0.4) * 3;
+                }
+                // --- End of "Story" Logic ---
+
+                const open = currentPrice;
+                const close = currentPrice + change;
+                const high = Math.max(open, close) + Math.random() * 2;
+                const low = Math.min(open, close) - Math.random() * 2;
+                const volume = Math.floor(Math.random() * 50000000) + 10000000;
+                
+                dailyData.push({
+                    x: date.getTime(),
+                    o: open, h: high, l: low, c: close, v: volume,
+                    sma_50: null, sma_200: null, rsi_14: null // Placeholders
+                });
+                closePrices.push(close);
+                currentPrice = close;
+            }
+
+            // --- Calculate Metrics (simulating transform.py) ---
+            
+            // Calculate SMAs
+            for (let i = 0; i < dailyData.length; i++) {
+                if (i >= 49) { // 50-day SMA
+                    const sum = closePrices.slice(i - 49, i + 1).reduce((a, b) => a + b, 0);
+                    dailyData[i].sma_50 = sum / 50;
+                }
+                if (i >= 199) { // 200-day SMA
+                    const sum = closePrices.slice(i - 199, i + 1).reduce((a, b) => a + b, 0);
+                    dailyData[i].sma_200 = sum / 200;
+                }
+            }
+
+            // Calculate RSI
+            let gains = [];
+            let losses = [];
+            for (let i = 1; i < dailyData.length; i++) {
+                const diff = dailyData[i].c - dailyData[i-1].c;
+                gains.push(diff > 0 ? diff : 0);
+                losses.push(diff < 0 ? -diff : 0);
+
+                if (i >= 13) { // 14-day RSI
+                    const avgGain = gains.slice(i - 13, i + 1).reduce((a, b) => a + b, 0) / 14;
+                    const avgLoss = losses.slice(i - 13, i + 1).reduce((a, b) => a + b, 0) / 14;
+                    
+                    if (avgLoss === 0) {
+                        dailyData[i].rsi_14 = 100; // Prevent divide by zero
+                    } else {
+                        const rs = avgGain / avgLoss;
+                        dailyData[i].rsi_14 = 100 - (100 / (1 + rs));
+                    }
+                }
+            }
+
+            // Return data, removing initial days where metrics couldn't be calculated
+            return dailyData.slice(200); // Ensures all data has 50/200-day SMAs
+        }
+
+
+        // --- UI RENDERING FUNCTIONS ---
+
+        /**
+         * Main function to update all UI elements with new data.
+         * @param {Object} data - The complete data object (from fetch or mock)
+         */
+        function displayData(data) {
+            const overview = data.companyOverview;
+            const dailyData = data.transformed_daily_data;
+            const performance = data.transformed_performance_index;
+            const metrics = dailyData[dailyData.length - 1]; // Latest data point
+
+            // Update Company Profile Card
+            document.getElementById('companyName').textContent = overview.Name;
+            document.getElementById('companySymbol').textContent = overview.Symbol;
+            document.getElementById('industryValue').textContent = overview.Industry;
+            document.getElementById('marketCapValue').textContent = formatCurrency(overview.MarketCapitalization);
+            document.getElementById('peRatioValue').textContent = parseFloat(overview.PERatio).toFixed(2);
+            document.getElementById('week52HighValue').textContent = formatPrice(overview["52WeekHigh"], false);
+            document.getElementById('week52LowValue').textContent = formatPrice(overview["52WeekLow"], false);
+            document.getElementById('companyDescription').textContent = overview.Description;
+            
+            // Update Key Performance Card
+            drawPerformanceTable(performance);
+
+            // Update Metrics Table
+            document.getElementById('ma50Value').innerHTML = formatPrice(metrics.sma_50);
+            document.getElementById('ma200Value').innerHTML = formatPrice(metrics.sma_200);
+            document.getElementById('rsiValue').innerHTML = formatMetric(metrics.rsi_14, 70, 30);
+            document.getElementById('latestCloseValue').innerHTML = formatPrice(metrics.c);
+
+            // Draw the Charts
+            drawCharts(dailyData);
+            drawRSIChart(dailyData); 
+            
+            // Draw the Historical Table
+            drawHistoricalTable(dailyData);
+        }
+        
+        /**
+         * Fills the Key Performance table with formatted % data.
+         * @param {Object} performance - The performance snapshot object.
+         */
+        function drawPerformanceTable(performance) {
+            document.getElementById('perf1day').innerHTML = formatPercentage(performance["1day_change_percent"]);
+            document.getElementById('perf5day').innerHTML = formatPercentage(performance["5day_change_percent"]);
+            document.getElementById('perf1month').innerHTML = formatPercentage(performance["month_change_percent"]);
+            document.getElementById('perf1year').innerHTML = formatPercentage(performance["year_change_percent"]);
+            document.getElementById('perf5year').innerHTML = formatPercentage(performance["5year_change_percent"]);
+            document.getElementById('perfYTD').innerHTML = formatPercentage(performance["ytd_change_percent"]);
+        }
+
+        /**
+         * Draws the historical data table.
+         * @param {Array<Object>} dailyData - Array of daily stock data objects.
+         */
+        function drawHistoricalTable(dailyData) {
+            const tableBody = document.getElementById('historicalTableBody');
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            // Loop through data, showing the most recent (last 30) days for brevity
+            dailyData.slice(-30).reverse().forEach(day => {
+                const date = new Date(day.x).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                const row = tableBody.insertRow();
+                row.className = 'hover:bg-gray-50 transition duration-150';
+                
+                row.insertCell().textContent = date;
+                row.insertCell().textContent = day.o.toFixed(2);
+                row.insertCell().textContent = day.h.toFixed(2);
+                row.insertCell().textContent = day.l.toFixed(2);
+                row.insertCell().textContent = day.c.toFixed(2);
+                row.insertCell().textContent = day.v.toLocaleString('en-US'); // Format volume
+            });
+            
+            if (dailyData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No historical data available.</td></tr>';
+            }
+        }
+
+        /**
+         * Clears all data and charts, showing an error.
+         * @param {string} message - The error message to display.
+         * @param {boolean} [isFatal=false] - If true, hides search.
+         */
+        function displayError(message, isFatal = false) {
+            document.getElementById('companyName').textContent = "DATA ERROR";
+            document.getElementById('companySymbol').textContent = message;
+            document.getElementById('industryValue').textContent = '--';
+            document.getElementById('marketCapValue').textContent = '--';
+            document.getElementById('peRatioValue').textContent = '--';
+            document.getElementById('week52HighValue').textContent = '--';
+            document.getElementById('week52LowValue').textContent = '--';
+            document.getElementById('companyDescription').textContent = 'Please try a different symbol or check the console for API issues.';
+            
+            // Clear tables
+            drawPerformanceTable({}); // Clears table
+            document.getElementById('ma50Value').textContent = '--';
+            document.getElementById('ma200Value').textContent = '--';
+            document.getElementById('rsiValue').textContent = '--';
+            document.getElementById('latestCloseValue').textContent = '--';
+            document.getElementById('historicalTableBody').innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No data available.</td></tr>';
+            
+            // Clear charts
+            if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+            if (rsiChartInstance) { rsiChartInstance.destroy(); rsiChartInstance = null; }
+            document.getElementById('priceChartCanvasWrapper').innerHTML = '<canvas id="priceChart"></canvas>';
+            document.getElementById('rsiChartCanvasWrapper').innerHTML = '<canvas id="rsiChart"></canvas>';
+            
+            if (isFatal) {
+                document.getElementById('searchButton').disabled = true;
+                document.getElementById('symbolInput').disabled = true;
+            }
+        }
+
+        // --- FORMATTING HELPERS ---
+
+        function formatCurrency(value) {
+            if (value === null || value === undefined) return '--';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(value);
+        }
+
+        function formatPrice(value, addColor = true) {
+            if (value === null || value === undefined) return '--';
+            const price = parseFloat(value).toFixed(2);
+            if (!addColor) return `$${price}`;
+            
+            let colorClass = 'text-emerald-700'; // Neutral
+            // This is a simple visual cue, not financial advice
+            if (price > 155) { colorClass = 'text-green-600'; }
+            if (price < 145) { colorClass = 'text-red-600'; }
+            return `<span class="${colorClass}">$${price}</span>`;
+        }
+
+        function formatMetric(value, highThreshold, lowThreshold) {
+            if (value === null || value === undefined) return '--';
+            const formattedValue = parseFloat(value).toFixed(2);
+            let colorClass = 'text-emerald-700'; // Neutral
+            if (value > highThreshold) {
+                colorClass = 'text-red-600 font-bold'; // Overbought/High
+            } else if (value < lowThreshold) {
+                colorClass = 'text-green-600 font-bold'; // Oversold/Low
+            }
+            return `<span class="${colorClass}">${formattedValue}</span>`;
+        }
+
+        function formatPercentage(value) {
+            if (value === null || value === undefined) return '--';
+            const val = parseFloat(value);
+            const formattedValue = val.toFixed(2) + '%';
+            
+            if (val > 0) {
+                return `<span class="text-green-600 font-medium">+${formattedValue}</span>`;
+            } else if (val < 0) {
+                return `<span class="text-red-600 font-medium">${formattedValue}</span>`;
+            } else {
+                return `<span class="text-gray-600 font-medium">${formattedValue}</span>`;
+            }
+        }
+
+        // --- CHART.JS IMPLEMENTATION: PRICE AND VOLUME ---
+
+        /**
+         * Draws the main Price/Volume/MA chart.
+         * @param {Array<Object>} dailyData - The time-series data.
+         */
+        function drawCharts(dailyData) {
+            if (priceChartInstance) {
+                priceChartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            // Format data for Chart.js
+            // This new logic reads metrics from *inside* the dailyData object
+            const priceData = dailyData.map(d => ({ x: d.x, o: d.o, h: d.h, l: d.l, c: d.c }));
+            const volumeData = dailyData.map(d => ({ x: d.x, y: d.v }));
+            const ma50Data = dailyData.map(d => ({ x: d.x, y: d.sma_50 }));
+            const ma200Data = dailyData.map(d => ({ x: d.x, y: d.sma_200 }));
+
+            const datasets = [
+                {
+                    label: 'Price',
+                    type: 'candlestick',
+                    data: priceData,
+                    yAxisID: 'yPrice',
+                    color: {
+                        up: '#10b981', // emerald-500
+                        down: '#ef4444', // red-500
+                        unchanged: '#94a3b8' // gray-400
+                    },
+                    borderColor: 'none'
+                },
+                {
+                    label: '50-Day MA',
+                    type: 'line',
+                    data: ma50Data,
+                    yAxisID: 'yPrice',
+                    borderColor: '#facc15', // yellow-400
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                },
+                {
+                    label: '200-Day MA',
+                    type: 'line',
+                    data: ma200Data,
+                    yAxisID: 'yPrice',
+                    borderColor: '#a855f7', // purple-500
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                },
+                {
+                    label: 'Volume',
+                    type: 'bar',
+                    data: volumeData,
+                    yAxisID: 'yVolume',
+                    backgroundColor: '#38bdf8', // sky-400
+                    barPercentage: 0.5,
+                    categoryPercentage: 0.5
+                }
+            ];
+
+            priceChartInstance = new Chart(ctx, {
+                type: 'candlestick', // Default type, but we mix them
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'month' },
+                            grid: { color: '#e2e8f0' }, // gray-200
+                            ticks: { color: '#374151' } // gray-700
+                        },
+                        yPrice: {
+                            position: 'left',
+                            title: { display: true, text: 'Price (USD)', color: '#1f2937' },
+                            grid: { color: '#e2e8f0' },
+                            ticks: { color: '#374151' }
+                        },
+                        yVolume: {
+                            position: 'right',
+                            title: { display: true, text: 'Volume', color: '#1f2937' },
+                            grid: { display: false },
+                            ticks: { color: '#374151', maxTicksLimit: 5, callback: (value) => new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value) }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#1f2937' } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // --- CHART.JS IMPLEMENTATION: RSI ---
+
+        /**
+         * Draws the standalone RSI chart.
+         * @param {Array<Object>} dailyData - The time-series data.
+         */
+        function drawRSIChart(dailyData) {
+            if (rsiChartInstance) {
+                rsiChartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('rsiChart').getContext('2d');
+            
+            // Format data for Chart.js
+            const rsiData = dailyData.map(d => ({ x: d.x, y: d.rsi_14 }));
+
+            rsiChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'RSI (14-Day)',
+                        data: rsiData,
+                        borderColor: '#a855f7', // purple-500
+                        backgroundColor: '#a855f7_33', // purple-500 with alpha
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'month' },
+                            grid: { color: '#e2e8f0' },
+                            ticks: { color: '#374151' }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            title: { display: true, text: 'RSI', color: '#1f2937' },
+                            grid: { color: '#e2e8f0' },
+                            ticks: { color: '#374151' },
+                            // Add bands
+                            afterBuildTicks: (axis) => {
+                                axis.ticks.push({ value: 70, type: 'band' });
+                                axis.ticks.push({ value: 30, type: 'band' });
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { mode: 'index', intersect: false },
+                        // This annotation-like feature adds the shaded areas
+                        // (We do it manually for a single file)
+                        annotation: {
+                            annotations: [
+                                { type: 'box', yMin: 70, yMax: 100, backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+                                { type: 'box', yMin: 0, yMax: 30, backgroundColor: 'rgba(34, 197, 94, 0.1)' }
+                            ]
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    // Custom plugin to draw the bands for Overbought/Oversold
+                    // This is safer than the 'annotation' plugin which isn't part of core Chart.js
+                    plugins: [{
+                        id: 'rsiBands',
+                        beforeDatasetsDraw(chart) {
+                            const { ctx, chartArea: { top, bottom, left, right }, scales: { y } } = chart;
+                            ctx.save();
+                            
+                            // Overbought (70-100)
+                            ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; // red-500 with 10% opacity
+                            ctx.fillRect(left, y.getPixelForValue(100), right - left, y.getPixelForValue(70) - y.getPixelForValue(100));
+
+                            // Oversold (0-30)
+                            ctx.fillStyle = 'rgba(34, 197, 94, 0.1)'; // green-500 with 10% opacity
+                            ctx.fillRect(left, y.getPixelForValue(30), right - left, y.getPixelForValue(0) - y.getPixelForValue(30));
+                            
+                            ctx.restore();
+                        }
+                    }]
+                }
+            });
+        }
+
+
+        // --- APP INITIALIZATION ---
+
+        function setupEventListeners() {
+            // Setup the main search button
+            document.getElementById('searchButton').addEventListener('click', () => {
+                const symbol = document.getElementById('symbolInput').value;
+                if (symbol.trim()) {
+                    fetchStockData(symbol.trim());
+                } else {
+                    displayError("Please enter a stock ticker symbol.", false);
+                }
+            });
+
+            // Allow pressing Enter to search
+            document.getElementById('symbolInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('searchButton').click();
+                }
+            });
+
+            // Load default data on page load
+            fetchStockData('MSFT');
+        }
+
+        // --- START THE APP ---
+        // Initialize Firebase first, which then calls setupEventListeners
+        initializeFirebase();
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+    </script>
+</body>
+</html>
