@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Market Analysis Dashboard</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Load Chart.js Financial Library for Candlestick Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.0/dist/chartjs-chart-financial.min.js"></script>
+    <!-- Load lucide-react icons (we use the non-react version here) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom scrollbar styling for a cleaner look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f9fafb; } /* gray-50 */
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; } /* gray-300 */
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; } /* gray-400 */
+
+        html, body { height: 100%; margin: 0; font-family: 'Inter', sans-serif; }
+        
+        body {
+            background-color: #f9fafb; /* gray-50 */
+            color: #1f2937; /* gray-800 */
+        }
+        /* Performance table zebra stripping */
+        #performanceTableBody tr:nth-child(even) {
+            background-color: #f3f4f6; /* gray-100 */
+        }
+
+        /* NEW: Styling for the active time-range button */
+        .time-range-btn {
+            transition: all 0.15s ease-in-out;
+        }
+        .time-range-btn.active {
+            background-color: #059669; /* emerald-600 */
+            color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+
+    <!-- Main Dashboard Container -->
+    <div id="app" class="max-w-7xl mx-auto">
+        
+        <!-- Header / Navigation -->
+        <header class="bg-emerald-700 p-4 rounded-xl shadow-xl mb-8 flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0">
+            
+            <a href="" class="text-2xl font-bold text-white flex-shrink-0 transition-colors duration-150 ease-in-out hover:text-emerald-950 flex items-center space-x-2">
+                <span data-lucide="line-chart" class="w-7 h-7"></span>
+                <span>Stock Market ETL Analysis</span>
+            </a>
+            
+            <div class="flex space-x-2">
+                <input type="text" id="symbolInput" placeholder="Enter Ticker Symbol (e.g., MSFT)"
+                       class="w-72 p-3 rounded-lg border-2 border-gray-300 bg-gray-100 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition duration-150 hover:shadow-md">
+                
+                <button id="searchButton"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition duration-150 transform hover:scale-105 flex items-center space-x-2 flex-shrink-0">
+                    <span data-lucide="search" class="w-5 h-5 text-white"></span>
+                    <span class="inline">Analyze</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div id="pageStockDashboard" class="space-y-8">
+            
+            <main class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                
+                <!-- Left Column: Company Profile and Key Metrics (lg:col-span-1) -->
+                <section class="lg:col-span-1 space-y-8">
+                    
+                    <!-- Company Profile Card -->
+                    <div id="companyProfileCard" class="bg-white p-6 rounded-xl shadow-xl border-t-4 border-emerald-500">
+                        <h2 class="text-xl font-semibold mb-4 text-emerald-600">Company Profile</h2>
+                        <div id="companyName" class="text-2xl font-bold mb-1 text-gray-800">Stock Name</div>
+                        <div id="companySymbol" class="text-lg text-gray-500 mb-4">TICKER</div>
+                        
+                        <div id="companyDetails" class="space-y-3 text-gray-700">
+                            <p><span class="font-medium text-emerald-600">Industry:</span> <span id="industryValue">Loading...</span></p>
+                            <p><span class="font-medium text-emerald-600">Market Cap:</span> <span id="marketCapValue">Loading...</span></p>
+                            <p><span class="font-medium text-emerald-600">P/E Ratio:</span> <span id="peRatioValue">Loading...</span></p>
+                            <p><span class="font-medium text-emerald-600">52-Week High:</span> <span id="week52HighValue">Loading...</span></p>
+                            <p><span class="font-medium text-emerald-600">52-Week Low:</span> <span id="week52LowValue">Loading...</span></p>
+                        </div>
+
+                        <div id="companyDescription" class="mt-4 text-sm max-h-40 overflow-y-auto pr-2">
+                            <p class="text-gray-500 italic">Description will appear here after fetching data.</p>
+                        </div>
+                    </div>
+
+                    <!-- Key Performance Card -->
+                    <div id="keyPerformanceCard" class="bg-white p-6 rounded-xl shadow-xl">
+                        <h2 class="text-xl font-semibold mb-4 text-emerald-600">Key Performance</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <tbody id="performanceTableBody" class="divide-y divide-gray-200 text-gray-700">
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">1-Day Change</td>
+                                        <td id="perf1day" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">5-Day Change</td>
+                                        <td id="perf5day" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">1-Month Change</td>
+                                        <td id="perf1month" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">1-Year Change</td>
+                                        <td id="perf1year" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">5-Year Change</td>
+                                        <td id="perf5year" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 font-medium">YTD Change</td>
+                                        <td id="perfYTD" class="px-4 py-3 text-right font-semibold">--</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- Right Column: Charts (lg:col-span-3) -->
+                <section class="lg:col-span-3 space-y-8">
+
+                    <!-- Chart Area 1: Candlestick and Volume -->
+                    <div id="priceVolumeChartContainer" class="bg-white p-6 rounded-xl shadow-xl">
+                        <!-- UPDATED: Flex container for title and new buttons -->
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+                            <h2 class="text-xl font-semibold text-emerald-600">Price & Volume Trend</h2>
+                            <!-- NEW: Time range buttons -->
+                            <div id="timeRangeControls" class="flex-shrink-0 flex space-x-1 bg-gray-200 p-1 rounded-lg">
+                                <button data-range="5D" class="time-range-btn px-3 py-1 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-300">5D</button>
+                                <button data-range="1M" class="time-range-btn px-3 py-1 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-300">1M</button>
+                                <button data-range="1Y" class="time-range-btn px-3 py-1 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-300 active">1Y</button>
+                                <button data-range="5Y" class="time-range-btn px-3 py-1 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-300">5Y</button>
+                                <button data-range="ALL" class="time-range-btn px-3 py-1 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-300">All</button>
+                            </div>
+                        </div>
+                        <div id="priceChartCanvasWrapper" class="relative w-full h-96">
+                            <canvas id="priceChart"></canvas>
+                            <div id="loadingOverlay" class="absolute inset-0 bg-white/90 flex items-center justify-center rounded-xl transition-opacity duration-300 opacity-0 pointer-events-none">
+                                <div class="text-center">
+                                    <span class="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full block mx-auto mb-2"></span>
+                                    <p class="text-gray-800">Fetching and analyzing data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RSI Indicator Chart -->
+                    <div id="rsiChartContainer" class="bg-white p-6 rounded-xl shadow-xl">
+                        <h2 class="text-xl font-semibold mb-4 text-emerald-600">Relative Strength Index (RSI)</h2>
+                        <div id="rsiChartCanvasWrapper" class="relative w-full h-48">
+                            <canvas id="rsiChart"></canvas>
+                        </div>
+                    </div>
+                    
+                </section>
+            </main>
+        </div>
+
+    </div>
+
+    <!-- 
+      This script runs after the page content is parsed and renders the icons.
+      It must be separate from the main module script to ensure the lucide library is loaded.
+    -->
+    <script>
+        lucide.createIcons();
+    </script>
+
+    <script type="module">
+        const CHART_GRID_COLOR = 'rgba(209, 213, 219, 0.5)'; // gray-300
+        const CHART_TICK_COLOR = '#4b5563'; // gray-600
+
+        // --- GLOBAL SETUP & FIREBASE INIT ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId;
+        let priceChartInstance = null;
+        let rsiChartInstance = null;
+
+        // NEW: State for full data and current filter
+        let fullDailyData = [];
+        let currentActiveRange = '1Y'; // Default range
+
+        // Import Firebase modules
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+        const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+        const { getFirestore, doc, getDoc, setLogLevel } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.warn("Firebase config is empty. Running in local mode.");
+                    setupEventListeners(); // Setup listeners even for local mode
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    console.warn("No initial auth token. Signing in anonymously.");
+                    await signInAnonymously(auth);
+                }
+                
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized. User ID:", userId);
+                setupEventListeners();
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                displayError("Cannot connect to database. Check console.");
+                setupEventListeners(); // Setup listeners so local/mock data can still work
+            }
+        }
+
+        // --- DATA FETCHING FUNCTIONS ---
+        function showLoading(isVisible) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (isVisible) {
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+            } else {
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        async function fetchStockData(symbol) {
+            let dataToDisplay = null;
+            const formattedSymbol = symbol.toUpperCase();
+            const isLocalDev = !db || window.location.protocol === 'file:' || window.location.hostname === '127.0.0.1';
+
+            try {
+                showLoading(true);
+                // NEW: Clear old data
+                fullDailyData = [];
+
+                if (isLocalDev) {
+                    if(!db) { console.warn("Firestore (db) is not initialized. Using MOCK data."); }
+                    else { console.warn("Running in local development mode. Displaying MOCK data."); }
+                    dataToDisplay = generateMockData(formattedSymbol);
+                } else {
+                    const dataPath = `artifacts/${appId}/public/data/stock_data`;
+                    const docRef = doc(db, dataPath, formattedSymbol);
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists()) {
+                        dataToDisplay = docSnap.data(); 
+                        dataToDisplay.transformed_daily_data.forEach(d => {
+                            if (d.x && typeof d.x.toDate === 'function') {
+                                d.x = d.x.toDate().getTime();
+                            }
+                        });
+                        console.log("Real Data fetched and converted:", dataToDisplay);
+                    } else {
+                        displayError(`No processed data found for symbol: ${formattedSymbol}`);
+                        return;
+                    }
+                }
+
+                if (dataToDisplay) {
+                    // NEW: Store the full dataset
+                    fullDailyData = dataToDisplay.transformed_daily_data;
+                    displayData(dataToDisplay);
+                }
+
+            } catch (error) {
+                console.error("Error during data fetching process:", error);
+                displayError("A critical error occurred while fetching data.");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+
+        // --- MOCK DATA GENERATION ---
+        function generateMockData(symbol) {
+            // ... (Mock data function remains unchanged) ...
+            const dailyData = [];
+            let currentPrice = 150;
+            const today = new Date();
+            const closePrices = []; 
+            const dates = [];
+
+            for (let i = (252 * 5); i >= 0; i--) { // Generate 5 years of mock data
+                const date = new Date(today);
+                date.setDate(today.getDate() - i);
+                const dateTimestamp = date.getTime();
+                
+                const change = (Math.random() - 0.5) * 5;
+                const open = currentPrice;
+                const close = currentPrice + change;
+                const high = Math.max(open, close) + Math.random() * 2;
+                const low = Math.min(open, close) - Math.random() * 2;
+                const volume = Math.floor(Math.random() * 50000000);
+                
+                closePrices.push(close);
+                dates.push(dateTimestamp);
+
+                dailyData.push({ 
+                    x: dateTimestamp, 
+                    o: open, h: high, l: low, c: close, v: volume,
+                    sma_50: null, sma_200: null, rsi_14: null
+                });
+                currentPrice = close;
+            }
+            
+            for (let i = 0; i < dailyData.length; i++) {
+                if (i >= 49) {
+                    const sum = closePrices.slice(i - 49, i + 1).reduce((a, b) => a + b, 0);
+                    dailyData[i].sma_50 = sum / 50;
+                }
+                if (i >= 199) {
+                    const sum = closePrices.slice(i - 199, i + 1).reduce((a, b) => a + b, 0);
+                    dailyData[i].sma_200 = sum / 200;
+                }
+                if (i >= 13) {
+                    dailyData[i].rsi_14 = 40 + (Math.sin(i / 10) * 30) + (Math.random() * 10);
+                }
+            }
+            
+            const latestData = dailyData[dailyData.length - 1];
+            const latestPrice = latestData.c;
+            
+            const clean_profile = {
+                "Symbol": symbol,
+                "Name": `MOCK Company (${symbol})`,
+                "Industry": "Technology/Data Science (MOCK)",
+                "MarketCapitalization": 1500000000000 + Math.floor(Math.random() * 50000000000),
+                "Description": "This mock data perfectly matches the 'transform.py' output structure.",
+                "PERatio": (Math.random() * 20 + 15).toFixed(2),
+                "52WeekHigh": (Math.max(...closePrices.slice(-252)) * 1.05).toFixed(2),
+                "52WeekLow": (Math.min(...closePrices.slice(-252)) * 0.95).toFixed(2)
+            };
+            
+            const transformed_performance_index = {
+                "1day_change_percent": (latestPrice - dailyData[dailyData.length - 2].c) / dailyData[dailyData.length - 2].c * 100,
+                "5day_change_percent": (latestPrice - dailyData[dailyData.length - 6].c) / dailyData[dailyData.length - 6].c * 100,
+                "month_change_percent": (latestPrice - dailyData[dailyData.length - 22].c) / dailyData[dailyData.length - 22].c * 100,
+                "year_change_percent": (latestPrice - dailyData[dailyData.length - 252].c) / dailyData[dailyData.length - 252].c * 100,
+                "5year_change_percent": (latestPrice - dailyData[dailyData.length - (252*5)].c) / dailyData[dailyData.length - (252*5)].c * 100,
+                "ytd_change_percent": (latestPrice - dailyData.find(d => new Date(d.x).getFullYear() === today.getFullYear()).c) / dailyData.find(d => new Date(d.x).getFullYear() === today.getFullYear()).c * 100
+            };
+            
+            // Return all data, filtering will happen in the chart function
+            const transformed_daily_data = dailyData;
+
+            return { clean_profile, transformed_daily_data, transformed_performance_index };
+        }
+
+        // --- UI RENDERING FUNCTIONS ---
+        
+        function displayData(data) {
+            const overview = data.clean_profile;
+            const performance = data.transformed_performance_index;
+            // REMOVED: const dailyData = data.transformed_daily_data;
+
+            document.getElementById('companyName').textContent = overview.Name;
+            document.getElementById('companySymbol').textContent = overview.Symbol;
+            document.getElementById('industryValue').textContent = overview.Industry;
+            document.getElementById('marketCapValue').textContent = formatCurrency(overview.MarketCapitalization);
+            document.getElementById('companyDescription').textContent = overview.Description;
+            document.getElementById('peRatioValue').textContent = parseFloat(overview.PERatio).toFixed(2);
+            document.getElementById('week52HighValue').textContent = formatPrice(overview["52WeekHigh"], false);
+            document.getElementById('week52LowValue').textContent = formatPrice(overview["52WeekLow"], false);
+            
+            drawPerformanceTable(performance);
+
+            // MODIFIED: Call the new filter function with the default range
+            // This will handle the initial chart draw.
+            filterAndRedrawCharts(currentActiveRange);
+        }
+        
+        function drawPerformanceTable(performance) {
+            document.getElementById('perf1day').innerHTML = formatPercentage(performance["1day_change_percent"]);
+            document.getElementById('perf5day').innerHTML = formatPercentage(performance["5day_change_percent"]);
+            document.getElementById('perf1month').innerHTML = formatPercentage(performance["month_change_percent"]);
+            document.getElementById('perf1year').innerHTML = formatPercentage(performance["year_change_percent"]);
+            document.getElementById('perf5year').innerHTML = formatPercentage(performance["5year_change_percent"]);
+            document.getElementById('perfYTD').innerHTML = formatPercentage(performance["ytd_change_percent"]);
+        }
+        
+        function displayError(message) {
+            document.getElementById('companyName').textContent = "DATA ERROR";
+            document.getElementById('companySymbol').textContent = message;
+            // ... (rest of the error display properties) ...
+            document.getElementById('industryValue').textContent = '--';
+            document.getElementById('marketCapValue').textContent = '--';
+            document.getElementById('companyDescription').textContent = 'Please try a different symbol or check the console for API issues.';
+            document.getElementById('peRatioValue').textContent = '--';
+            document.getElementById('week52HighValue').textContent = '--';
+            document.getElementById('week52LowValue').textContent = '--';
+            document.getElementById('perf1day').textContent = '--';
+            document.getElementById('perf5day').textContent = '--';
+            document.getElementById('perf1month').textContent = '--';
+            document.getElementById('perf1year').textContent = '--';
+            document.getElementById('perf5year').textContent = '--';
+            document.getElementById('perfYTD').textContent = '--';
+            
+            document.getElementById('priceChartCanvasWrapper').innerHTML = '<canvas id="priceChart"></canvas>';
+            document.getElementById('rsiChartCanvasWrapper').innerHTML = '<canvas id="rsiChart"></canvas>'; 
+
+            if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+            if (rsiChartInstance) { rsiChartInstance.destroy(); rsiChartInstance = null; }
+
+            // NEW: Clear the stored data
+            fullDailyData = [];
+        }
+
+        // --- FORMATTING HELPERS ---
+        // ... (formatCurrency, formatPrice, formatMetric, formatPercentage functions remain unchanged) ...
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(value);
+        }
+        function formatPrice(value, addColor = false) {
+            const price = parseFloat(value).toFixed(2);
+            if (!addColor) return `$${price}`; 
+            let colorClass = 'text-emerald-600'; 
+            if (price > 155) { colorClass = 'text-green-600'; }
+            if (price < 145) { colorClass = 'text-red-600'; }
+            return `<span class="${colorClass}">$${price}</span>`;
+        }
+        function formatMetric(value, highThreshold, lowThreshold) {
+            const formattedValue = parseFloat(value).toFixed(2);
+            let colorClass = 'text-gray-700'; 
+            if (value > highThreshold) { colorClass = 'text-red-600 font-bold'; } 
+            else if (value < lowThreshold) { colorClass = 'text-green-600 font-bold'; }
+            return `<span class="${colorClass}">${formattedValue}</span>`;
+        }
+        function formatPercentage(value) {
+            if (value === null || typeof value === 'undefined') return '<span class="text-gray-700">--</span>';
+            const formattedValue = parseFloat(value).toFixed(2) + '%';
+            let colorClass = 'text-gray-700';
+            if (value > 0) { colorClass = 'text-green-600'; }
+            else if (value < 0) { colorClass = 'text-red-600'; }
+            return `<span class="${colorClass}">${formattedValue}</span>`;
+        }
+
+
+        /**
+         * NEW FUNCTION: Filters the full dataset based on the selected time range
+         * and redraws both the Price/Volume and RSI charts.
+         * @param {string} range - The time range (e.g., "5D", "1M", "1Y", "5Y", "ALL").
+         */
+        function filterAndRedrawCharts(range) {
+            if (!fullDailyData || fullDailyData.length === 0) {
+                console.warn("No data to filter or draw.");
+                return;
+            }
+
+            currentActiveRange = range;
+            let filteredData = [];
+            const dataLength = fullDailyData.length;
+
+            // ~21 trading days in a month, 252 in a year
+            // We use slice with Math.max to prevent negative indices
+            switch (range) {
+                case "5D":
+                    filteredData = fullDailyData.slice(Math.max(0, dataLength - 5));
+                    break;
+                case "1M":
+                    filteredData = fullDailyData.slice(Math.max(0, dataLength - 21));
+                    break;
+                case "1Y":
+                    filteredData = fullDailyData.slice(Math.max(0, dataLength - 252));
+                    break;
+                case "5Y":
+                    filteredData = fullDailyData.slice(Math.max(0, dataLength - (252 * 5)));
+                    break;
+                case "ALL":
+                default:
+                    filteredData = fullDailyData;
+                    break;
+            }
+
+            // Update button active states
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+                if (btn.dataset.range === range) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // Now draw the charts with the filtered data
+            // We also pass the range to drawCharts to adjust time unit
+            drawCharts(filteredData, range);
+            drawRSIChart(filteredData, range);
+        }
+
+
+        // --- CHART.JS IMPLEMENTATION: PRICE AND VOLUME ---
+        // MODIFIED: to accept a 'range' parameter to adjust the x-axis time unit
+        function drawCharts(dailyData, range) {
+            if (priceChartInstance) { priceChartInstance.destroy(); }
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            const priceData = dailyData.map(d => ({ x: d.x, o: d.o, h: d.h, l: d.l, c: d.c }));
+            const volumeData = dailyData.map(d => ({ x: d.x, y: d.v }));
+            const ma50Data = dailyData.map(d => ({ x: d.x, y: d.sma_50 }));
+            const ma200Data = dailyData.map(d => ({ x: d.x, y: d.sma_200 }));
+
+            // NEW: Adjust time unit based on range
+            let timeUnit = 'day';
+            if (range === '5D' || range === '1M') timeUnit = 'day';
+            else if (range === '1Y') timeUnit = 'month';
+            else if (range === '5Y' || range === 'ALL') timeUnit = 'year';
+
+            const datasets = [
+                {
+                    label: 'Price', type: 'candlestick', data: priceData, yAxisID: 'yPrice',
+                    itemStyle: { color: '#10b981', borderColor: '#dc2626' }
+                },
+                {
+                    label: '50-Day MA', type: 'line', data: ma50Data, yAxisID: 'yPrice',
+                    borderColor: '#fde047', // yellow-300
+                    borderWidth: 2, pointRadius: 0, fill: false, tension: 0.2
+                },
+                {
+                    label: '200-Day MA', type: 'line', data: ma200Data, yAxisID: 'yPrice',
+                    borderColor: '#a78bfa', // violet-400
+                    borderWidth: 2, pointRadius: 0, fill: false, tension: 0.2
+                },
+                {
+                    label: 'Volume', type: 'bar', data: volumeData, yAxisID: 'yVolume',
+                    backgroundColor: (context) => {
+                        const index = context.dataIndex;
+                        if (index < 0 || index >= priceData.length) return 'rgba(107, 114, 128, 0.4)';
+                        const pricePoint = priceData[index];
+                        return pricePoint.c > pricePoint.o ? 'rgba(16, 185, 129, 0.4)' : 'rgba(220, 38, 38, 0.4)'; 
+                    },
+                    borderColor: (context) => {
+                        const index = context.dataIndex;
+                        if (index < 0 || index >= priceData.length) return '#6b7280';
+                        const pricePoint = priceData[index];
+                        return pricePoint.c > pricePoint.o ? '#10b981' : '#dc2626'; 
+                    },
+                    borderWidth: 1
+                }
+            ];
+            
+            priceChartInstance = new Chart(ctx, {
+                data: { datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time', 
+                            // MODIFIED: Use dynamic time unit
+                            time: { unit: timeUnit }, 
+                            grid: { color: CHART_GRID_COLOR }, 
+                            ticks: { color: CHART_TICK_COLOR } 
+                        },
+                        yPrice: {
+                            position: 'left',
+                            title: { display: true, text: 'Price ($)', color: '#10b981' }, 
+                            grid: { color: CHART_GRID_COLOR },
+                            ticks: { color: CHART_TICK_COLOR },
+                        },
+                        yVolume: {
+                            position: 'right',
+                            title: { display: true, text: 'Volume', color: CHART_TICK_COLOR },
+                            grid: { display: false },
+                            ticks: { color: CHART_TICK_COLOR, maxTicksLimit: 3, callback: (value) => value > 0 ? (value / 1000000).toFixed(1) + 'M' : '' },
+                            max: Math.max(...volumeData.map(d => d.y)) * 4, min: 0
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: CHART_TICK_COLOR, boxWidth: 12 } },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+        
+        // --- RSI CHART IMPLEMENTATION ---
+        // MODIFIED: to accept a 'range' parameter to adjust the x-axis time unit
+        function drawRSIChart(dailyData, range) {
+            if (rsiChartInstance) { rsiChartInstance.destroy(); }
+
+            const ctxRSI = document.getElementById('rsiChart').getContext('2d');
+            
+            const rsiData = dailyData.map(d => ({ x: d.x, y: d.rsi_14 }));
+
+            // NEW: Adjust time unit based on range
+            let timeUnit = 'day';
+            if (range === '5D' || range === '1M') timeUnit = 'day';
+            else if (range === '1Y') timeUnit = 'month';
+            else if (range === '5Y' || range === 'ALL') timeUnit = 'year';
+
+            rsiChartInstance = new Chart(ctxRSI, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'RSI (14)', data: rsiData, yAxisID: 'yRSI',
+                        borderColor: '#a3e635', // lime-400
+                        borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time', 
+                            // MODIFIED: Use dynamic time unit
+                            time: { unit: timeUnit },
+                            grid: { color: CHART_GRID_COLOR },
+                            ticks: { color: CHART_TICK_COLOR }
+                        },
+                        yRSI: {
+                            position: 'left', min: 0, max: 100,
+                            title: { display: false },
+                            grid: { color: CHART_GRID_COLOR },
+                            ticks: { color: CHART_TICK_COLOR,
+                                callback: function(value, index, values) {
+                                    if (value === 30 || value === 70) {
+                                        return value;
+                                    }
+                                }
+                            },
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }, tooltip: { mode: 'index', intersect: false },
+                    }
+                }
+            });
+        }
+
+
+        // --- EVENT LISTENERS ---
+        // MODIFIED: to add listeners for time range buttons
+        function setupEventListeners() {
+            const searchButton = document.getElementById('searchButton');
+            const symbolInput = document.getElementById('symbolInput');
+            // NEW: Get the time range buttons
+            const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+
+            const handleSearch = () => {
+                const symbol = symbolInput.value.trim().toUpperCase();
+                if (symbol) {
+                    // NEW: Reset default range on new search
+                    currentActiveRange = '1Y'; 
+                    fetchStockData(symbol);
+                } else {
+                    displayError("Please enter a valid stock ticker symbol.");
+                }
+            };
+
+            searchButton.addEventListener('click', handleSearch);
+            symbolInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') { handleSearch(); }
+            });
+
+            // NEW: Add listeners for time range buttons
+            timeRangeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const range = button.dataset.range;
+                    filterAndRedrawCharts(range);
+                });
+            });
+
+            // Load default stock on page load
+            symbolInput.value = 'MSFT';
+            fetchStockData('MSFT'); 
+        }
+
+        // --- APPLICATION START ---
+        initializeFirebase();
+    </script>
+</body>
+</html>
