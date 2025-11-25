@@ -10,8 +10,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.0/dist/chartjs-chart-financial.min.js"></script>
-
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
       /* Custom scrollbar styling for a cleaner look */
@@ -627,6 +625,7 @@
 
       // --- CHART.JS IMPLEMENTATION: PRICE AND VOLUME ---
       // MODIFIED: to accept a 'range' parameter to adjust the x-axis time unit
+      // --- CHART.JS IMPLEMENTATION: PRICE (Line) AND VOLUME (Bar) ---
       function drawCharts(dailyData, range) {
         if (priceChartInstance) {
           priceChartInstance.destroy();
@@ -634,12 +633,13 @@
 
         const ctx = document.getElementById('priceChart').getContext('2d');
 
-        const priceData = dailyData.map((d) => ({ x: d.x, o: d.o, h: d.h, l: d.l, c: d.c }));
+        // 1. Map Data for Line Chart (Using Close Price 'c')
+        const priceData = dailyData.map((d) => ({ x: d.x, y: d.c }));
         const volumeData = dailyData.map((d) => ({ x: d.x, y: d.v }));
         const ma50Data = dailyData.map((d) => ({ x: d.x, y: d.sma_50 }));
         const ma200Data = dailyData.map((d) => ({ x: d.x, y: d.sma_200 }));
 
-        // NEW: Adjust time unit based on range
+        // 2. Adjust time unit based on range
         let timeUnit = 'day';
         if (range === '5D' || range === '1M') timeUnit = 'day';
         else if (range === '1Y') timeUnit = 'month';
@@ -647,52 +647,47 @@
 
         const datasets = [
           {
-            label: 'Price',
-            type: 'candlestick',
+            label: 'Close Price',
+            type: 'line', // Switched from 'candlestick' to 'line'
             data: priceData,
             yAxisID: 'yPrice',
-            itemStyle: { color: '#10b981', borderColor: '#dc2626' },
+            borderColor: '#10b981', // Emerald Green
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 2,
+            pointRadius: 0, // Hides dots for a clean line
+            pointHoverRadius: 4,
+            fill: true,
+            tension: 0.1, // Slight curve
           },
           {
             label: '50-Day MA',
             type: 'line',
             data: ma50Data,
             yAxisID: 'yPrice',
-            borderColor: '#fde047', // yellow-300
+            borderColor: '#fde047', // Yellow
             borderWidth: 2,
             pointRadius: 0,
             fill: false,
-            tension: 0.2,
+            tension: 0.1,
           },
           {
             label: '200-Day MA',
             type: 'line',
             data: ma200Data,
             yAxisID: 'yPrice',
-            borderColor: '#a78bfa', // violet-400
+            borderColor: '#a78bfa', // Purple
             borderWidth: 2,
             pointRadius: 0,
             fill: false,
-            tension: 0.2,
+            tension: 0.1,
           },
           {
             label: 'Volume',
             type: 'bar',
             data: volumeData,
             yAxisID: 'yVolume',
-            backgroundColor: (context) => {
-              const index = context.dataIndex;
-              if (index < 0 || index >= priceData.length) return 'rgba(107, 114, 128, 0.4)';
-              const pricePoint = priceData[index];
-              return pricePoint.c > pricePoint.o ? 'rgba(16, 185, 129, 0.4)' : 'rgba(220, 38, 38, 0.4)';
-            },
-            borderColor: (context) => {
-              const index = context.dataIndex;
-              if (index < 0 || index >= priceData.length) return '#6b7280';
-              const pricePoint = priceData[index];
-              return pricePoint.c > pricePoint.o ? '#10b981' : '#dc2626';
-            },
-            borderWidth: 1,
+            backgroundColor: 'rgba(107, 114, 128, 0.3)', // Gray
+            borderWidth: 0,
           },
         ];
 
@@ -701,10 +696,13 @@
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false,
+            },
             scales: {
               x: {
                 type: 'time',
-                // MODIFIED: Use dynamic time unit
                 time: { unit: timeUnit },
                 grid: { color: CHART_GRID_COLOR },
                 ticks: { color: CHART_TICK_COLOR },
@@ -724,13 +722,13 @@
                   maxTicksLimit: 3,
                   callback: (value) => (value > 0 ? (value / 1000000).toFixed(1) + 'M' : ''),
                 },
-                max: Math.max(...volumeData.map((d) => d.y)) * 4,
+                // Push volume bars to the bottom 20% of the chart
                 min: 0,
+                max: Math.max(...volumeData.map((d) => d.y)) * 5,
               },
             },
             plugins: {
               legend: { labels: { color: CHART_TICK_COLOR, boxWidth: 12 } },
-              tooltip: { mode: 'index', intersect: false },
             },
           },
         });
