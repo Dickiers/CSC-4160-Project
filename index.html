@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-      
+      /* Custom scrollbar styling */
       ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: #f9fafb; }
       ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
@@ -122,6 +122,7 @@
       const CHART_GRID_COLOR = 'rgba(209, 213, 219, 0.5)';
       const CHART_TICK_COLOR = '#4b5563';
 
+      // --- FIREBASE SETUP ---
       const appId = 'stock-market-etl-2f750';
       const firebaseConfig = {
         apiKey: 'AIzaSyB5FkwHi4rrZ6XcOwbin2L9ihmo__L3EGE',
@@ -156,6 +157,39 @@
         }
       }
 
+      // --- EVENT LISTENERS (RESTORED) ---
+      function setupEventListeners() {
+        const searchButton = document.getElementById('searchButton');
+        const symbolInput = document.getElementById('symbolInput');
+        const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+
+        const handleSearch = () => {
+          const symbol = symbolInput.value.trim().toUpperCase();
+          if (symbol) {
+            currentActiveRange = '1Y'; // Reset range on new search
+            fetchStockData(symbol);
+          } else {
+            displayError('Please enter a valid stock ticker symbol.');
+          }
+        };
+
+        searchButton.addEventListener('click', handleSearch);
+        symbolInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') handleSearch();
+        });
+
+        timeRangeButtons.forEach((button) => {
+          button.addEventListener('click', () => {
+            const range = button.dataset.range;
+            filterAndRedrawCharts(range);
+          });
+        });
+
+        // Load default stock on page load
+        symbolInput.value = 'MSFT';
+        fetchStockData('MSFT');
+      }
+
       function showLoading(isVisible) {
         const overlay = document.getElementById('loadingOverlay');
         if (isVisible) overlay.classList.remove('opacity-0', 'pointer-events-none');
@@ -167,7 +201,7 @@
         
         try {
           showLoading(true);
-          fullDailyData = [];
+          fullDailyData = []; // Clear old data
 
           const docRef = doc(db, 'stock_data', formattedSymbol);
           const docSnap = await getDoc(docRef);
@@ -234,6 +268,7 @@
       function displayError(message) {
         document.getElementById('companyName').textContent = 'DATA ERROR';
         document.getElementById('companySymbol').textContent = message;
+        // Reset UI
         document.getElementById('industryValue').textContent = '--';
         document.getElementById('marketCapValue').textContent = '--';
         document.getElementById('companyDescription').textContent = 'Try a different symbol.';
@@ -242,6 +277,7 @@
         if (rsiChartInstance) { rsiChartInstance.destroy(); rsiChartInstance = null; }
       }
 
+      // --- FORMATTERS ---
       function formatCurrency(value) {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(value);
       }
@@ -257,6 +293,7 @@
         return `<span class="${color}">${formatted}</span>`;
       }
 
+      // --- CHARTS ---
       function filterAndRedrawCharts(range) {
         if (!fullDailyData || fullDailyData.length === 0) return;
         currentActiveRange = range;
@@ -350,6 +387,7 @@
         });
       }
 
+      // --- START ---
       initializeFirebase();
     </script>
   </body>
