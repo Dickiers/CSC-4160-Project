@@ -316,44 +316,51 @@
         }
       }
 
-      async function fetchStockData(symbol) {
+async function fetchStockData(symbol) {
         let dataToDisplay = null;
         const formattedSymbol = symbol.toUpperCase();
         const isLocalDev = !db || window.location.protocol === 'file:' || window.location.hostname === '127.0.0.1';
 
         try {
           showLoading(true);
-          // NEW: Clear old data
           fullDailyData = [];
 
           if (isLocalDev) {
-            if (!db) {
-              console.warn('Firestore (db) is not initialized. Using MOCK data.');
-            } else {
-              console.warn('Running in local development mode. Displaying MOCK data.');
-            }
+            console.warn('Running in local development mode. Displaying MOCK data.');
             dataToDisplay = generateMockData(formattedSymbol);
           } else {
-            const dataPath = `artifacts/${appId}/public/data/stock_data`;
             const docRef = doc(db, 'stock_data', formattedSymbol);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
               dataToDisplay = docSnap.data();
-              dataToDisplay.transformed_daily_data.forEach((d) => {
-                if (d.x && typeof d.x.toDate === 'function') {
-                  d.x = d.x.toDate().getTime();
-                }
-              });
-              console.log('Real Data fetched and converted:', dataToDisplay);
+
+              // --- CRITICAL FIX: Translate Python Data to Chart Format ---
+              if (dataToDisplay.transformed_daily_data) {
+                dataToDisplay.transformed_daily_data.forEach((d) => {
+                  // 1. Fix Date: Python sends "date" (String), Chart needs "x" (Timestamp)
+                  if (d.date) {
+                    // Parse "2025-11-25" into a timestamp number
+                    d.x = new Date(d.date).getTime();
+                  } 
+                  
+                  // 2. Fix Columns: Python sends full names, Chart needs short names
+                  // We map them so the existing chart logic works
+                  if (d.open !== undefined) d.o = d.open;
+                  if (d.high !== undefined) d.h = d.high;
+                  if (d.low !== undefined) d.l = d.low;
+                  if (d.close !== undefined) d.c = d.close;
+                  if (d.volume !== undefined) d.v = d.volume;
+                });
+              }
+              console.log('Real Data fetched and normalized:', dataToDisplay);
             } else {
-              displayError(`No processed data found for symbol: ${formattedSymbol}`);
+              displayError(`No data found for symbol: ${formattedSymbol}`);
               return;
             }
           }
 
           if (dataToDisplay) {
-            // NEW: Store the full dataset
             fullDailyData = dataToDisplay.transformed_daily_data;
             displayData(dataToDisplay);
           }
