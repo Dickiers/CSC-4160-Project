@@ -316,7 +316,7 @@
         }
       }
 
-async function fetchStockData(symbol) {
+      async function fetchStockData(symbol) {
         let dataToDisplay = null;
         const formattedSymbol = symbol.toUpperCase();
         const isLocalDev = !db || window.location.protocol === 'file:' || window.location.hostname === '127.0.0.1';
@@ -335,22 +335,25 @@ async function fetchStockData(symbol) {
             if (docSnap.exists()) {
               dataToDisplay = docSnap.data();
 
-              // --- CRITICAL FIX: Translate Python Data to Chart Format ---
+              // --- CRITICAL FIX: Translate Python Keys to Chart Keys ---
               if (dataToDisplay.transformed_daily_data) {
-                dataToDisplay.transformed_daily_data.forEach((d) => {
-                  // 1. Fix Date: Python sends "date" (String), Chart needs "x" (Timestamp)
+                // We map over the array to create a new compatible structure
+                dataToDisplay.transformed_daily_data = dataToDisplay.transformed_daily_data.map((d) => {
+                  let newRow = { ...d }; // Copy existing data
+
+                  // 1. Fix Date: Python "date" (String) -> Chart "x" (Timestamp Number)
                   if (d.date) {
-                    // Parse "2025-11-25" into a timestamp number
-                    d.x = new Date(d.date).getTime();
-                  } 
-                  
-                  // 2. Fix Columns: Python sends full names, Chart needs short names
-                  // We map them so the existing chart logic works
-                  if (d.open !== undefined) d.o = d.open;
-                  if (d.high !== undefined) d.h = d.high;
-                  if (d.low !== undefined) d.l = d.low;
-                  if (d.close !== undefined) d.c = d.close;
-                  if (d.volume !== undefined) d.v = d.volume;
+                    newRow.x = new Date(d.date).getTime();
+                  }
+
+                  // 2. Fix Columns: Python names -> Chart short names
+                  if (d.open !== undefined) newRow.o = d.open;
+                  if (d.high !== undefined) newRow.h = d.high;
+                  if (d.low !== undefined) newRow.l = d.low;
+                  if (d.close !== undefined) newRow.c = d.close;
+                  if (d.volume !== undefined) newRow.v = d.volume;
+
+                  return newRow;
                 });
               }
               console.log('Real Data fetched and normalized:', dataToDisplay);
@@ -368,7 +371,9 @@ async function fetchStockData(symbol) {
           console.error('Error during data fetching process:', error);
           displayError('A critical error occurred while fetching data.');
         } finally {
-          showLoading(false);
+          // Ensure loading overlay is hidden even if errors occur
+          const overlay = document.getElementById('loadingOverlay');
+          if (overlay) overlay.classList.add('opacity-0', 'pointer-events-none');
         }
       }
 
