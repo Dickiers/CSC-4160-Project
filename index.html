@@ -28,21 +28,41 @@
         background-color: #059669; color: white;
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
       }
+      
+      /* Stock Pill Button Styling */
+      .stock-btn { transition: all 0.2s; }
+      .stock-btn:hover { background-color: rgba(255, 255, 255, 0.2); }
+      .stock-btn.active-stock { 
+        background-color: white; 
+        color: #047857; /* emerald-700 */
+        font-weight: bold;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
     </style>
   </head>
   <body class="min-h-screen p-4 sm:p-8">
     <div id="app" class="max-w-7xl mx-auto">
-      <header class="bg-emerald-700 p-4 rounded-xl shadow-xl mb-8 flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0">
-        <a href="" class="text-2xl font-bold text-white flex-shrink-0 flex items-center space-x-2">
-          <span data-lucide="line-chart" class="w-7 h-7"></span>
-          <span>Stock Market ETL Analysis</span>
-        </a>
-        <div class="flex space-x-2">
-          <input type="text" id="symbolInput" placeholder="Enter Ticker Symbol (e.g., MSFT)" class="w-72 p-3 rounded-lg border-2 border-gray-300 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-          <button id="searchButton" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg shadow-md flex items-center space-x-2 flex-shrink-0">
-            <span data-lucide="search" class="w-5 h-5 text-white"></span>
-            <span class="inline">Analyze</span>
-          </button>
+      
+      <header class="bg-emerald-700 p-6 rounded-xl shadow-xl mb-8">
+        <div class="flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0 mb-6">
+          <a href="" class="text-2xl font-bold text-white flex-shrink-0 flex items-center space-x-2">
+            <span data-lucide="line-chart" class="w-8 h-8"></span>
+            <span>Stock Market ETL Analysis</span>
+          </a>
+          
+          <div class="flex space-x-2 w-full lg:w-auto">
+            <input type="text" id="symbolInput" placeholder="Search Ticker (e.g., MSFT)" class="flex-1 lg:w-72 p-3 rounded-lg border-2 border-emerald-600 bg-emerald-800 text-white placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition" />
+            <button id="searchButton" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold py-3 px-6 rounded-lg shadow-md flex items-center space-x-2 transition transform hover:scale-105">
+              <span data-lucide="search" class="w-5 h-5"></span>
+              <span class="hidden sm:inline">Analyze</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="border-t border-emerald-600 pt-4">
+            <p class="text-emerald-200 text-xs font-semibold mb-3 uppercase tracking-wider">Available Assets</p>
+            <div id="stockListContainer" class="flex flex-wrap gap-2">
+                </div>
         </div>
       </header>
 
@@ -122,6 +142,9 @@
       const CHART_GRID_COLOR = 'rgba(209, 213, 219, 0.5)';
       const CHART_TICK_COLOR = '#4b5563';
 
+      // --- AVAILABLE STOCKS CONFIG ---
+      const AVAILABLE_STOCKS = ["NVDA", "AAPL", "MSFT", "GOOG", "AMZN", "AVGO", "META", "TSLA", "BRK-B", "JPM", "WMT", "V"];
+
       // --- FIREBASE SETUP ---
       const appId = 'stock-market-etl-2f750';
       const firebaseConfig = {
@@ -151,13 +174,49 @@
           await signInAnonymously(auth);
           console.log('Firebase initialized.');
           setupEventListeners();
+          renderStockList(); // Render the new buttons
         } catch (error) {
           console.error('Error initializing Firebase:', error);
           displayError('Cannot connect to database.');
         }
       }
 
-      // --- EVENT LISTENERS (RESTORED) ---
+      // --- NEW: Render Stock Buttons ---
+      function renderStockList() {
+        const container = document.getElementById('stockListContainer');
+        container.innerHTML = ''; // Clear existing
+        
+        AVAILABLE_STOCKS.forEach(symbol => {
+            const btn = document.createElement('button');
+            btn.textContent = symbol;
+            // Styling classes
+            btn.className = `stock-btn px-4 py-1.5 rounded-full text-sm font-medium border border-emerald-500/30 text-emerald-100 bg-emerald-800/50`;
+            btn.dataset.symbol = symbol;
+            
+            btn.onclick = () => {
+                currentActiveRange = '1Y';
+                fetchStockData(symbol);
+            };
+            container.appendChild(btn);
+        });
+      }
+
+      function updateActiveStockButton(activeSymbol) {
+        const buttons = document.querySelectorAll('.stock-btn');
+        buttons.forEach(btn => {
+            if (btn.dataset.symbol === activeSymbol) {
+                btn.classList.add('active-stock');
+                btn.classList.remove('text-emerald-100', 'bg-emerald-800/50');
+            } else {
+                btn.classList.remove('active-stock');
+                btn.classList.add('text-emerald-100', 'bg-emerald-800/50');
+            }
+        });
+        // Also update search input to match
+        document.getElementById('symbolInput').value = activeSymbol;
+      }
+
+      // --- EVENT LISTENERS ---
       function setupEventListeners() {
         const searchButton = document.getElementById('searchButton');
         const symbolInput = document.getElementById('symbolInput');
@@ -186,7 +245,6 @@
         });
 
         // Load default stock on page load
-        symbolInput.value = 'MSFT';
         fetchStockData('MSFT');
       }
 
@@ -198,7 +256,8 @@
 
       async function fetchStockData(symbol) {
         const formattedSymbol = symbol.toUpperCase();
-        
+        updateActiveStockButton(formattedSymbol); // Highlight the button
+
         try {
           showLoading(true);
           fullDailyData = []; // Clear old data
